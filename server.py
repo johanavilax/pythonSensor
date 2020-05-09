@@ -9,12 +9,11 @@ import serial.tools.list_ports
 import serial
 import json
 import time
-import threading
+from time import time as tiempo
+import re
 
 
-
-
-
+import statistics as stats
 
 app = Flask(__name__)
 CORS(app)
@@ -22,34 +21,8 @@ socketio = SocketIO(app,cors_allowed_origins='*',always_connect = True)
 
 final = ""
 connected = False
-
-def sensorCiclo():
-    global final
-    global connected
-    while True :
-        while final == "" and connected == True:
-            print ("ciclo")
-
-            ports = serial.tools.list_ports.comports()
-            for p in ports :
-                if(p.manufacturer):
-                    if(p.manufacturer.find("Prolific")!=-1):
-                        final = p.device
-            if final !="":
-                while connected == True:
-                    ser = serial.Serial(final, 9600)
-                    data = ser.read_until("kg")
-                    if len(data) > 0:
-                        print("esto es data "+ str(data))
-                        socketio.emit('sensorData', {'num': str(data)}, namespace='/socket')
-                    else :
-                        emit('sensorData', {'num': "Error de conexion con sensor"})
-                    ser.close()
-            else :
-                emit('sensorData', {'num': "Error de conexion con sensor"})
-        time.sleep(2)
-
-threading.Thread(target=sensorCiclo).start()
+connectedC = False
+config = json.loads(open('config.json').read())
 
 @app.route('/getConfig',methods=['GET'])
 def getConfig():
@@ -72,37 +45,109 @@ def setConfig():
     leer = json.loads(open('config.json').read())
     return jsonify(leer)
 
+
+@socketio.on('connect',namespace='/calibrate')
+def connectC():
+    global connectedC
+    connectedC = True
+    print("calibrate")
+
+    while connectedC: 
+        ports = serial.tools.list_ports.comports()
+        for p in ports :
+            if(p.manufacturer):
+                if(p.manufacturer.find("Prolific")!=-1):
+                    final = p.device
+        if final !="":
+            socketio.emit('infoC', {"ok":"MessageL",'num': "Porfavor bloquee el sensor"}, namespace='/calibrate')
+            try:
+                ser = serial.Serial(final, 9600)
+                data = ser.read_until("kg")
+                ser.close()
+                if len(data) > 1  :
+                    socketio.emit('infoC', {"ok":"MessageC",'num': "Leyendo datos Porfavor espere"}, namespace='/calibrate')
+                    lista = []
+                    for i in range(10):
+                        start_time = tiempo()
+                        ser = serial.Serial(final, 9600)
+                        data = ser.read_until("kg")
+                        elapsed_time = tiempo() - start_time
+                        lista.append(elapsed_time)
+                        ser.close()
+                    media = stats.mean(lista)
+
+                    socketio.emit('infoC', {"ok":"C",'num': "Terminado"}, namespace='/calibrate')
+            except serial.SerialException:
+                final == ""
+                socketio.emit('infoC', {"ok":"E",'num': "Problema con el puerto, reconectando"}, namespace='/calibrate')
+                while final == "":
+                    ports = serial.tools.list_ports.comports()
+                    for p in ports :
+                        if(p.manufacturer):
+                            if(p.manufacturer.find("Prolific")!=-1):
+                                final = p.device
+            
+
+@socketio.on('disconnect',namespace='/calibrate')
+def disconnectC():
+    global connectedC
+    connectedC = False
+
 @socketio.on('connect',namespace='/socket')
 def connect():
     print("connected")
     global connected
+    global final
     connected = True
-    # while final == "" and connected == True:
-    #     print ("ciclo")
+    while connected == True :
+        print ("ciclo")
 
-    #     ports = serial.tools.list_ports.comports()
-    #     for p in ports :
-    #         if(p.manufacturer):
-    #             if(p.manufacturer.find("Prolific")!=-1):
-    #                 final = p.device
-    #     if final !="":
-    #         while final!="":
-    #             ser = serial.Serial(final, 9600)
-    #             data = ser.read_until("kg")
-    #             if len(data) > 0:
-    #                 print("esto es data "+ str(data))
-    #                 socketio.emit('sensorData', {'num': str(data)}, namespace='/socket')
-    #             else :
-    #                 emit('sensorData', {'num': "Error de conexion con sensor"})
-    #             ser.close()
-    #     else :
-    #         emit('sensorData', {'num': "Error de conexion con sensor"})
+        ports = serial.tools.list_ports.comports()
+        for p in ports :
+            if(p.manufacturer):
+                if(p.manufacturer.find("Prolific")!=-1):
+                    final = p.device
+        if final !="":
+            while connected == True :            
+                value = 0
+                count = 0
+                try:
+                    ser = serial.Serial(final, 9600 , timeout=5)
+                    data = ser.read_until("kg")
+                    ser.close()
+                    if len(data) > 1  :
+                        print("leyendo")
+                        socketio.emit('sensorData', {"ok":"MessageL",'num': "Leyendo datos"}, namespace='/socket')
+                        count = 1
+                        m = re.search("\d+\.\d+",data[0:len(data)-2])
+                        num = m.group()
+                        value = float(num)
+                        while len(data) > 1 :
+                            ser = serial.Serial(final, 9600,timeout=config['timeout'])
+                            data = ser.read_until("kg")
+                            if len(data) > 1:
+                                m = re.search("\d+\.\d+",data[0:len(data)-2])
+                                num = m.group()
+                                value = float(num) + value
+                                count = count + 1
+                            else :
+                                socketio.emit('sensorData', {"ok":"Num",'num': str(value/count)+" kg"}, namespace='/socket')
+                                data = ""
+                            ser.close()
+                    else :
+                        socketio.emit('sensorData', {"ok":"MessageL",'num': "Esperando datos"} , namespace='/socket')
+                except serial.SerialException:
+                    final = ""
+                    socketio.emit('sensorData', {"ok":"MessageE",'num': "Error con puerto , reconectando"} , namespace='/socket')
+        else :
+            socketio.emit('sensorData', {"ok":"MessageL",'num': "Error de conexion con sensor"} , namespace='/socket')
+            time.sleep(2)
+        time.sleep(2)
+
 @socketio.on('disconnect',namespace='/socket')
 def disconnect():
     print("discconect")
-    global final
     global connected
-    final = ""
     connected = False
 
 if __name__ == '__main__':

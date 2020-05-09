@@ -2,5 +2,6 @@
     "test": "", 
     "use": false, 
     "sensor": "/dev/ttyUSB0", 
-    "line": "Linea 7"
+    "line": "Linea 7", 
+    "timeout": 1.2
 }
