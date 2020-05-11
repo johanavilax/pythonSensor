@@ -17,7 +17,7 @@ import statistics as stats
 
 app = Flask(__name__)
 CORS(app)
-socketio = SocketIO(app,cors_allowed_origins='*',always_connect = True)
+socketio = SocketIO(app,logger=True,cors_allowed_origins='*',always_connect = True,engineio_logger=True,ping_timeout=9999 ,ping_interval=9999)
 
 final = ""
 connected = False
@@ -75,8 +75,11 @@ def connectC():
                         lista.append(elapsed_time)
                         ser.close()
                     media = stats.mean(lista)
-
+                    config['timeout'] = (media+(media*5/100))
+                    with open('config.json', 'w') as file:
+                            json.dump(config, file, indent=4)
                     socketio.emit('infoC', {"ok":"C",'num': "Terminado"}, namespace='/calibrate')
+                    connectedC = False
             except serial.SerialException:
                 final == ""
                 socketio.emit('infoC', {"ok":"E",'num': "Problema con el puerto, reconectando"}, namespace='/calibrate')
@@ -111,45 +114,61 @@ def connect():
             while connected == True :            
                 value = 0
                 count = 0
-                try:
-                    ser = serial.Serial(final, 9600 , timeout=5)
-                    data = ser.read_until("kg")
-                    ser.close()
-                    if len(data) > 1  :
-                        print("leyendo")
-                        socketio.emit('sensorData', {"ok":"MessageL",'num': "Leyendo datos"}, namespace='/socket')
-                        count = 1
-                        m = re.search("\d+\.\d+",data[0:len(data)-2])
-                        num = m.group()
-                        value = float(num)
-                        while len(data) > 1 :
-                            ser = serial.Serial(final, 9600,timeout=config['timeout'])
-                            data = ser.read_until("kg")
-                            if len(data) > 1:
-                                m = re.search("\d+\.\d+",data[0:len(data)-2])
-                                num = m.group()
-                                value = float(num) + value
-                                count = count + 1
-                            else :
-                                socketio.emit('sensorData', {"ok":"Num",'num': str(value/count)+" kg"}, namespace='/socket')
-                                data = ""
-                            ser.close()
-                    else :
-                        socketio.emit('sensorData', {"ok":"MessageL",'num': "Esperando datos"} , namespace='/socket')
-                except serial.SerialException:
-                    final = ""
-                    socketio.emit('sensorData', {"ok":"MessageE",'num': "Error con puerto , reconectando"} , namespace='/socket')
+                print("ciclo lectura inicial")
+                # try:
+                ser = serial.Serial(final, 9600 , timeout=5)
+                data = ser.read_until("kg")
+                ser.close()
+                if len(data) > 1  :
+                    print("leyendo")
+                    socketio.emit('info', {"ok":"MessageL",'num': "Leyendo datos"}, namespace='/socket')
+                    count = 1
+                    m = re.search("\d+\.\d+",data[0:len(data)-2])
+                    num = m.group()
+                    value = float(num)
+                    while len(data) > 1 :
+                        ser = serial.Serial(final, 9600,timeout=config['timeout'])
+                        data = ser.read_until("kg")
+                        if len(data) > 1:
+                            m = re.search("\d+\.\d+",data[0:len(data)-2])
+                            num = m.group()
+                            value = float(num) + value
+                            count = count + 1
+                        else :
+                            socketio.emit('sensorData', {"ok":"Num",'num': str(value/count)+" kg"}, namespace='/socket')
+                            data = ""
+                        ser.close()
+                else :
+                    print("esperando datos")
+                    socketio.emit('info', {"ok":"MessageL",'num': "Esperando datos"} , namespace='/socket')
+                    socketio.sleep(2)
+
+                # except serial.SerialException:
+                #     print(serial.SerialException)
+                #     final = ""
+                #     print("Error leyenndo datos")
+                #     socketio.emit('info', {"ok":"MessageE",'num': "Error con puerto , reconectando"} , namespace='/socket')
+                #     socketio.sleep(2)
         else :
-            socketio.emit('sensorData', {"ok":"MessageL",'num': "Error de conexion con sensor"} , namespace='/socket')
-            time.sleep(2)
-        time.sleep(2)
+            print("error conexion con sensor")
+            socketio.emit('info', {"ok":"MessageL",'num': "Error de conexion con sensor"} , namespace='/socket')
+            socketio.sleep(2)
+        socketio.sleep(2)
 
 @socketio.on('disconnect',namespace='/socket')
-def disconnect():
+def disconnect(environ):
     print("discconect")
+    print(environ)
     global connected
     connected = False
-
+    
+@socketio.on('ping',namespace='/socket')
+def ping():
+    print("ping")
+@socketio.on('pong',namespace='/socket')
+def pong():
+    print("pong")
+ 
 if __name__ == '__main__':
     
     socketio.run(app,debug =True , port= 8001)
