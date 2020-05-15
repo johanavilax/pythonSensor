@@ -18,7 +18,7 @@ import statistics as stats
 app = Flask(__name__)
 CORS(app)
 socketio = SocketIO(app,logger=True,cors_allowed_origins='*',always_connect = True,engineio_logger=True,ping_timeout=9999 ,ping_interval=9999)
-
+ser = {}
 final = ""
 connected = False
 connectedC = False
@@ -51,7 +51,6 @@ def connectC():
     global connectedC
     connectedC = True
     print("calibrate")
-
     while connectedC: 
         ports = serial.tools.list_ports.comports()
         for p in ports :
@@ -156,9 +155,8 @@ def connect():
         socketio.sleep(2)
 
 @socketio.on('disconnect',namespace='/socket')
-def disconnect(environ):
+def disconnect():
     print("discconect")
-    print(environ)
     global connected
     connected = False
     
