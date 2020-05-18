@@ -1,0 +1,1 @@
+--onefile  -i icon.ico --debug=imports --noconsole --specpath= finalServer.spec 

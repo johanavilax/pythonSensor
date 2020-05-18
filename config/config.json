@@ -1,0 +1,8 @@
+{
+    "test": "", 
+    "url":"http://localhost:3000",
+    "use": false, 
+    "sensor": "/dev/ttysUSB0", 
+    "line": "Linea 7", 
+    "timeout": 0.7489739263057709
+}
