@@ -1,3 +1,4 @@
+#!/usr/bin/python2.7
 import time
 from flask import Flask ,jsonify ,request
 import json
@@ -12,11 +13,24 @@ import re
 import webbrowser
 app = Flask(__name__)
 CORS(app)
-# path= (os.path.join(sys._MEIPASS, 'config\config.json'))
-path= (os.path.join(sys._MEIPASS, 'config/config.json'))
+path= (os.path.join(sys._MEIPASS, 'config\config.json'))
+# path= (os.path.join(sys._MEIPASS, 'config/config.json'))
 # path = "config/config.json"
 config = json.loads(open(path).read())
 url= config['url']
+try:
+    if llamado == False :
+        llamado = True
+except:
+    llamado = False
+
+
+def enviar(dest,data):
+    global url
+    try :
+        r = requests.post(url = url+":4000/"+dest, data = data) 
+    except :
+        print("error enviando al servidor")
 
 
 def lectura():
@@ -29,58 +43,82 @@ def lectura():
                         final = p.device
             if final !="":
                 while True :            
-                    value = 0
+                    value = ""
                     print("ciclo lectura inicial")
-                    # try:
-                    ser = serial.Serial(final, 9600 , timeout=5)
-                    data = ser.read_until("kg")
-                    ser.close()
+                    data = -1
+                    try:
+                        ser = serial.Serial(final, 9600 , timeout=5)
+                        data = ser.read_until("kg")
+                        ser.close()
+                    except Exception,e :
+                        print("algo ocurrio con sensor",str(e))
+                        pass
                     if len(data) > 1  :
+                        value= float(data[:-2])
                         print("leyendo")
                         dataSend = {'line':config['line'],
                                     "ok":"MessageL",
                                     'num': "Leyendo datos"}
-                        r = requests.post(url = url+"/info", data = dataSend) 
-                        count = 1
-                        m = re.search("\d+\.\d+",data[0:len(data)-2])
-                        num = m.group()
-                        value = float(num)
+                        try:
+                            threading.Thread(target = enviar, args=("info",dataSend) ).start() 
+                        except:
+                            print("problema al conectar con el servidor")
+                        try:
+                            value = str(data)
+                        except Exception , e:
+                            print("error convirtiendo a float",str(e))
                         while len(data) > 1 :
-                            ser = serial.Serial(final, 9600,timeout=config['timeout'])
-                            data = ser.read_until("kg")
+                            try:
+                                ser = serial.Serial(final, 9600,timeout=config['timeout'])
+                                data = ser.read_until("kg")
+                                ser.close()
+                            except:
+                                print("error con sensor en lectura")
                             if len(data) > 1:
-                                print("leyendo")
+                                print("leyendo caja")
                             else :
+                                data = " "
                                 dataSend = {'line':config['line'],
                                             "ok":"Num",
-                                            'num': str(value)+" kg"}
-                                r = requests.post(url = url+"/updateData", data = dataSend) 
-                                data = ""
-                            ser.close()
+                                            'num': (value[:-2])+" kg"}
+                                try: 
+                                    print("Enviando lectura " + value)
+                                    threading.Thread(target = enviar, args=("updateData",dataSend) ).start() 
+                                    print("enviada")
+                                except : 
+                                    print ("error enviando datos ")
+                                print("despues")
+                        print("salio")
                     else :
                         print("esperando datos")
                         dataSend = {'line':config['line'],
                                      "ok":"MessageL",
                                      'num': "Esperando datos"}
-                        r = requests.post(url = url+"/info", data = dataSend)
+                        try:
+                            threading.Thread(target = enviar, args=("info",dataSend) ).start() 
+                        except:
+                            print("Error enviando informacion")
                         time.sleep(1)
             else :
                 print("error conexion con sensor")
                 dataSend = {'line':config['line'],
                             'ok':'MessageL',
                             'num': 'Error de conexion con sensor'}
-                r = requests.post(url = url+"/info", data = dataSend)
+                try:
+                    threading.Thread(target = enviar, args=("info",dataSend) ).start() 
+                except:
+                    print("Error enviando informacion de sensor")
                 time.sleep(2)
             time.sleep(2)
 
 
-threading.Thread(target = lectura).start()
+
 
 
 
 @app.route('/getConfig',methods=['GET'])
 def getConfig():
-
+    print("get")
     leer = json.loads(open(path).read())
     return jsonify(leer)
 
@@ -100,8 +138,22 @@ def setConfig():
     leer = json.loads(open(path).read())
     return jsonify(leer)
 
-# chrome_path = '/usr/bin/google-chrome %s'
-chrome_path = 'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe %s'
-webbrowser.get(chrome_path).open("0.0.0.0:3000/recepcion-de-linea",new=1)
+@app.before_first_request
+def loop():
+    threading.Thread(target = lectura).start()
+
+
+def open_browser():
+     global llamado
+     print(llamado)
+     if not llamado:
+         llamado = True
+         print(llamado)
+         chrome_path = 'C:/Program Files/Google/Chrome/Application/chrome.exe %s'
+         time.sleep(5)
+        #  chrome_path = '/usr/bin/google-chrome %s'
+         webbrowser.get(chrome_path).open(url+"/recepcion-de-linea")  
+
 if __name__ == '__main__':
-        app.run(debug =True , port= 8001)
+        threading.Thread(target = open_browser).start()
+        app.run(debug =True  ,port= 8001,use_reloader=False)

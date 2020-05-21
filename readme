@@ -1,1 +1,3 @@
 --onefile  -i icon.ico --debug=imports --noconsole --specpath= finalServer.spec 
+
+wine ~/.wine/drive_c/Python27/Scripts/pyinstaller.exe --onefile  -i icon.ico --specpath= finalServer.spec
