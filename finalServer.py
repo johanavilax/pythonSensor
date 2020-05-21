@@ -37,6 +37,7 @@ def lectura():
     while True :
             print ("ciclo")
             ports = serial.tools.list_ports.comports()
+            final = ""
             for p in ports :
                 if(p.manufacturer):
                     if(p.manufacturer.find("Prolific")!=-1):
