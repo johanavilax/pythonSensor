@@ -13,9 +13,9 @@ import re
 import webbrowser
 app = Flask(__name__)
 CORS(app)
-path= (os.path.join(sys._MEIPASS, 'config\config.json'))
-# path= (os.path.join(sys._MEIPASS, 'config/config.json'))
-# path = "config/config.json"
+#path= (os.path.join(sys._MEIPASS, 'config\config.json'))
+path= (os.path.join(sys._MEIPASS, 'config/config.json'))
+#path = "config/config.json"
 config = json.loads(open(path).read())
 url= config['url']
 try:
@@ -55,7 +55,6 @@ def lectura():
                         print("algo ocurrio con sensor",str(e))
                         pass
                     if len(data) > 1  :
-                        value= float(data[:-2])
                         print("leyendo")
                         dataSend = {'line':config['line'],
                                     "ok":"MessageL",
@@ -65,7 +64,7 @@ def lectura():
                         except:
                             print("problema al conectar con el servidor")
                         try:
-                            value = str(data)
+                            value = (data)
                         except Exception , e:
                             print("error convirtiendo a float",str(e))
                         while len(data) > 1 :
@@ -81,7 +80,7 @@ def lectura():
                                 data = " "
                                 dataSend = {'line':config['line'],
                                             "ok":"Num",
-                                            'num': (value[:-2])+" kg"}
+                                            'num': (value)+" kg"}
                                 try: 
                                     print("Enviando lectura " + value)
                                     threading.Thread(target = enviar, args=("updateData",dataSend) ).start() 
@@ -125,6 +124,7 @@ def getConfig():
 
 @app.route('/setConfig',methods=['POST'])
 def setConfig():
+    global config
     leer = json.loads(open(path).read())
     if (request.json['name'] == "weight"):
         leer['weight']=request.json['value']
@@ -137,6 +137,7 @@ def setConfig():
     with open(path, 'w') as file:
         json.dump(leer, file, indent=4)
     leer = json.loads(open(path).read())
+    config = json.loads(open(path).read())
     return jsonify(leer)
 
 @app.before_first_request
