@@ -14,8 +14,8 @@ import webbrowser
 app = Flask(__name__)
 CORS(app)
 #path= (os.path.join(sys._MEIPASS, 'config\config.json'))
-path= (os.path.join(sys._MEIPASS, 'config/config.json'))
-#path = "config/config.json"
+# path= (os.path.join(sys._MEIPASS, 'config/config.json'))
+path = "config/config.json"
 config = json.loads(open(path).read())
 url= config['url']
 try:
@@ -46,9 +46,16 @@ def lectura():
                 while True :            
                     value = ""
                     print("ciclo lectura inicial")
-                    data = -1
+                    data = ""
+                    dataSend = {'line':config['line'],
+                                    "ok":"MessageL",
+                                    'num': "Esperando datos"}
                     try:
-                        ser = serial.Serial(final, 9600 , timeout=5)
+                        threading.Thread(target = enviar, args=("info",dataSend) ).start() 
+                    except:
+                        print("Error enviando informacion")
+                    try:
+                        ser = serial.Serial(final, 9600 , timeout=1)
                         data = ser.read_until("kg")
                         ser.close()
                     except Exception,e :
