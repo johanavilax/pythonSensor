@@ -13,9 +13,9 @@ import re
 import webbrowser
 app = Flask(__name__)
 CORS(app)
-#path= (os.path.join(sys._MEIPASS, 'config\config.json'))
+path= (os.path.join(sys._MEIPASS, 'config\config.json'))
 # path= (os.path.join(sys._MEIPASS, 'config/config.json'))
-path = "config/config.json"
+#path = "config/config.json"
 config = json.loads(open(path).read())
 url= config['url']
 try:
