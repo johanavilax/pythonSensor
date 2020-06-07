@@ -13,9 +13,9 @@ import re
 import webbrowser
 app = Flask(__name__)
 CORS(app)
-path= (os.path.join(sys._MEIPASS, 'config\config.json'))
+#path= (os.path.join(sys._MEIPASS, 'config\config.json'))
 # path= (os.path.join(sys._MEIPASS, 'config/config.json'))
-#path = "config/config.json"
+path = "config/config.json"
 config = json.loads(open(path).read())
 url= config['url']
 try:
@@ -44,7 +44,7 @@ def lectura():
                         final = p.device
             if final !="":
                 while True :            
-                    value = ""
+                    value = []
                     print("ciclo lectura inicial")
                     data = ""
                     dataSend = {'line':config['line'],
@@ -55,7 +55,7 @@ def lectura():
                     except:
                         print("Error enviando informacion")
                     try:
-                        ser = serial.Serial(final, 9600 , timeout=1)
+                        ser = serial.Serial(final, 9600 , timeout=0.6)
                         data = ser.read_until("kg")
                         ser.close()
                     except Exception,e :
@@ -71,13 +71,14 @@ def lectura():
                         except:
                             print("problema al conectar con el servidor")
                         try:
-                            value = (data)
+                            value.append(data+ " kg")
                         except Exception , e:
                             print("error convirtiendo a float",str(e))
                         while len(data) > 1 :
                             try:
                                 ser = serial.Serial(final, 9600,timeout=config['timeout'])
                                 data = ser.read_until("kg")
+                                value.append(data+" kg")
                                 ser.close()
                             except:
                                 print("error con sensor en lectura")
@@ -87,12 +88,16 @@ def lectura():
                                 data = " "
                                 dataSend = {'line':config['line'],
                                             "ok":"Num",
-                                            'num': (value)+" kg"}
+                                            'num': (value)}
+                                print(value)
+                                print(len(value))
+                                print(dataSend)
                                 try: 
-                                    print("Enviando lectura " + value)
+                                    
                                     threading.Thread(target = enviar, args=("updateData",dataSend) ).start() 
                                     print("enviada")
-                                except : 
+                                except AssertionError as error:
+                                    print(error)
                                     print ("error enviando datos ")
                                 print("despues")
                         print("salio")
@@ -105,7 +110,7 @@ def lectura():
                             threading.Thread(target = enviar, args=("info",dataSend) ).start() 
                         except:
                             print("Error enviando informacion")
-                        time.sleep(1)
+                        time.sleep(0.5)
             else :
                 print("error conexion con sensor")
                 dataSend = {'line':config['line'],
