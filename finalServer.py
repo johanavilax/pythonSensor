@@ -1,6 +1,10 @@
-#!/usr/bin/python2.7
+import eventlet
+eventlet.monkey_patch()
+
+
 import time
 from flask import Flask ,jsonify ,request
+from flask_socketio import SocketIO, emit
 import json
 import os
 import sys
@@ -10,32 +14,36 @@ import serial
 import threading
 import requests 
 import re
-import webbrowser
+# import webbrowser
 app = Flask(__name__)
 CORS(app)
-path= (os.path.join(sys._MEIPASS, 'config\config.json'))
+# path= (os.path.join(sys._MEIPASS, 'config\config.json'))
 # path= (os.path.join(sys._MEIPASS, 'config/config.json'))
-#path = "config/config.json"
+path = "config/config.json"
 config = json.loads(open(path).read())
 url= config['url']
+socketio = SocketIO(app,logger=True,cors_allowed_origins='*',always_connect = True,engineio_logger=True,ping_timeout=9999 ,ping_interval=9999)
+
 try:
     if llamado == False :
         llamado = True
 except:
     llamado = False
-
+start = False
 
 def enviar(dest,data):
     global url
     try :
-        r = requests.post(url = url+":4000/"+dest, data = data) 
+        # r = requests.post(url = url+":4000/"+dest, data = data) 
+        socketio.emit(dest,data, namespace='/socket')
+
     except :
         print("error enviando al servidor")
 
 
 def lectura():
-    while True :
-            print ("ciclo")
+    global start
+    while start :
             ports = serial.tools.list_ports.comports()
             final = ""
             for p in ports :
@@ -43,9 +51,8 @@ def lectura():
                     if(p.manufacturer.find("Prolific")!=-1):
                         final = p.device
             if final !="":
-                while True :            
-                    value = ""
-                    print("ciclo lectura inicial")
+                while start :            
+                    value = []
                     data = ""
                     dataSend = {'line':config['line'],
                                     "ok":"MessageL",
@@ -56,13 +63,11 @@ def lectura():
                         print("Error enviando informacion")
                     try:
                         ser = serial.Serial(final, 9600 , timeout=1)
-                        data = ser.read_until("kg")
+                        data = ser.read_until(str.encode("kg"))
                         ser.close()
-                    except Exception,e :
-                        print("algo ocurrio con sensor",str(e))
-                        pass
-                    if len(data) > 1  :
-                        print("leyendo")
+                    except ValueError:
+                        print("algo ocurrio con sensor"+ str(ValueError))
+                    if len(data) > 1:
                         dataSend = {'line':config['line'],
                                     "ok":"MessageL",
                                     'num': "Leyendo datos"}
@@ -71,25 +76,27 @@ def lectura():
                         except:
                             print("problema al conectar con el servidor")
                         try:
-                            value = (data)
-                        except Exception , e:
-                            print("error convirtiendo a float",str(e))
+                            value.append(data.decode("utf-8") )
+                        except:
+                            print("error convirtiendo a float")
                         while len(data) > 1 :
                             try:
                                 ser = serial.Serial(final, 9600,timeout=config['timeout'])
-                                data = ser.read_until("kg")
+                                data = ser.read_until(str.encode("kg"))
                                 ser.close()
                             except:
                                 print("error con sensor en lectura")
                             if len(data) > 1:
-                                print("leyendo caja")
+                                value.append(data.decode("utf-8") )
+                                print(data)
                             else :
                                 data = " "
                                 dataSend = {'line':config['line'],
                                             "ok":"Num",
-                                            'num': (value)+" kg"}
+                                            'num': value}
+                                
                                 try: 
-                                    print("Enviando lectura " + value)
+                                    print(value)
                                     threading.Thread(target = enviar, args=("updateData",dataSend) ).start() 
                                     print("enviada")
                                 except : 
@@ -97,7 +104,6 @@ def lectura():
                                 print("despues")
                         print("salio")
                     else :
-                        print("esperando datos")
                         dataSend = {'line':config['line'],
                                      "ok":"MessageL",
                                      'num': "Esperando datos"}
@@ -105,7 +111,7 @@ def lectura():
                             threading.Thread(target = enviar, args=("info",dataSend) ).start() 
                         except:
                             print("Error enviando informacion")
-                        time.sleep(1)
+                        time.sleep(0.5)
             else :
                 print("error conexion con sensor")
                 dataSend = {'line':config['line'],
@@ -119,9 +125,19 @@ def lectura():
             time.sleep(2)
 
 
+@app.route('/start',methods=['GET'])
+def start():
+    global start
+    if not start :
+        start = True
+        threading.Thread(target = lectura).start()
+        return jsonify({"ok":"ok"})
 
-
-
+@app.route('/end',methods=['GET'])
+def stop():
+    global start
+    start = False
+    return jsonify({"ok":"ok"})
 
 @app.route('/getConfig',methods=['GET'])
 def getConfig():
@@ -147,22 +163,23 @@ def setConfig():
     config = json.loads(open(path).read())
     return jsonify(leer)
 
-@app.before_first_request
-def loop():
-    threading.Thread(target = lectura).start()
+# @app.before_first_request
+# def loop():
+#     threading.Thread(target = lectura).start()
 
 
-def open_browser():
-     global llamado
-     print(llamado)
-     if not llamado:
-         llamado = True
-         print(llamado)
-         chrome_path = 'C:/Program Files/Google/Chrome/Application/chrome.exe %s'
-         time.sleep(5)
-        #  chrome_path = '/usr/bin/google-chrome %s'
-         webbrowser.get(chrome_path).open(url+"/recepcion-de-linea")  
+# def open_browser():
+#      global llamado
+#      print(llamado)
+#      if not llamado:
+#          llamado = True
+#          print(llamado)
+#          chrome_path = 'C:/Program Files/Google/Chrome/Application/chrome.exe %s'
+#          time.sleep(5)
+#         #  chrome_path = '/usr/bin/google-chrome %s'
+#          webbrowser.get(chrome_path).open(url+"/recepcion-de-linea")  
 
 if __name__ == '__main__':
-        threading.Thread(target = open_browser).start()
-        app.run(debug =True  ,port= 8001,use_reloader=False)
+        # threading.Thread(target = open_browser).start()
+        # app.run(debug =True  ,port= 8001,use_reloader=False)    
+        socketio.run(app,debug =True , port= 8001)
