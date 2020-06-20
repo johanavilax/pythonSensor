@@ -56,7 +56,7 @@ def lectura():
                     data = ""
                     dataSend = {'line':config['line'],
                                     "ok":"MessageL",
-                                    'num': "Esperando datos"}
+                                    'num': "Lectura"}
                     try:
                         threading.Thread(target = enviar, args=("info",dataSend) ).start() 
                     except:
@@ -70,7 +70,7 @@ def lectura():
                     if len(data) > 1:
                         dataSend = {'line':config['line'],
                                     "ok":"MessageL",
-                                    'num': "Leyendo datos"}
+                                    'num': "Caja"}
                         try:
                             threading.Thread(target = enviar, args=("info",dataSend) ).start() 
                         except:
@@ -80,6 +80,7 @@ def lectura():
                         except:
                             print("error convirtiendo a float")
                         while len(data) > 1 :
+
                             try:
                                 ser = serial.Serial(final, 9600,timeout=config['timeout'])
                                 data = ser.read_until(str.encode("kg"))
@@ -87,8 +88,16 @@ def lectura():
                             except:
                                 print("error con sensor en lectura")
                             if len(data) > 1:
-                                value.append(data.decode("utf-8") )
-                                print(data)
+                                try:
+                                    value.append(data.decode("utf-8") )
+                                    print(data)
+                                    dataSend = {'line':config['line'],
+                                        "ok":"MessageL",
+                                        'num': "Caja"}
+                                    threading.Thread(target = enviar, args=("info",dataSend) ).start()
+                                except:
+                                    pass
+                                
                             else :
                                 data = " "
                                 dataSend = {'line':config['line'],
@@ -106,7 +115,7 @@ def lectura():
                     else :
                         dataSend = {'line':config['line'],
                                      "ok":"MessageL",
-                                     'num': "Esperando datos"}
+                                     'num': "Lectura"}
                         try:
                             threading.Thread(target = enviar, args=("info",dataSend) ).start() 
                         except:
