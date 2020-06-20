@@ -15,7 +15,7 @@ import threading
 import requests 
 import re
 # import webbrowser
-app = Flask(__name__)
+app = Flask(__name__) 
 CORS(app)
 # path= (os.path.join(sys._MEIPASS, 'config\config.json'))
 # path= (os.path.join(sys._MEIPASS, 'config/config.json'))
